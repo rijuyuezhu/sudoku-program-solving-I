@@ -1,0 +1,10 @@
+.vscode/
+.VsCodeCounter/
+build/
+*.aux
+*.log
+*.out
+*.synctex.gz
+*.pdf
+*.toc
+*.xlsx

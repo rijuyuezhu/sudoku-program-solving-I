@@ -1,0 +1,579 @@
+\documentclass{article}
+\usepackage{ctex}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{color, xcolor}
+\usepackage{listings}
+\title{Sudoku 数独游戏}
+\author{黄文睿}
+\date{2022 年 11 月}
+
+\definecolor{mygreen}{rgb}{0,0.6,0}
+\definecolor{mygray}{rgb}{0.5,0.5,0.5}
+\definecolor{mymauve}{rgb}{0.58,0,0.82}
+\lstset{ %
+backgroundcolor=\color{white},   % choose the background color
+basicstyle=\footnotesize\ttfamily,        % size of fonts used for the code
+columns=fullflexible,
+breaklines=true,                 % automatic line breaking only at whitespace
+captionpos=b,                    % sets the caption-position to bottom
+tabsize=4,
+commentstyle=\color{mygreen},    % comment style
+escapeinside={\%*}{*)},          % if you want to add LaTeX within your code
+keywordstyle=\color{blue},       % keyword style
+stringstyle=\color{mymauve}\ttfamily,     % string literal style
+frame=single,
+rulesepcolor=\color{red!20!green!20!blue!20},
+% identifierstyle=\color{red},
+language=c++,
+}
+
+\newcommand{\subsubsubsection}[1]{\paragraph{#1}\mbox{}\\}
+\setcounter{secnumdepth}{4} % how many sectioning levels to assign numbers to
+\setcounter{tocdepth}{4} % how many sectioning levels to show in ToC
+
+\begin{document}
+
+    \maketitle
+
+    \tableofcontents
+
+    
+    \newpage
+
+    \section{文件结构}
+    \subsection{sudoku.h}
+
+    \begin{lstlisting}
+constexpr int BOARD_SIZE = 9;
+constexpr int BLOCK_SIZE = 3;
+    \end{lstlisting}
+
+    表示数独总棋盘边长、数独九宫格边长。
+
+    \begin{lstlisting}
+constexpr int SCREEN_WIDTH = <>;
+constexpr int SCREEN_HEIGHT = <>;
+    \end{lstlisting}
+
+    表示屏幕输出区的大小。（未最终确认大小）
+
+    \begin{lstlisting}
+constexpr int NUMBER_SIZE = 9;
+    \end{lstlisting}
+
+    表示数独中可填数的上界。
+
+    \begin{lstlisting}
+constexpr int KEY_TYPE_SIZE = 21;
+    \end{lstlisting}
+
+    表示按键类型的数量（见下方 Key\_type）。
+
+    \begin{lstlisting}
+enum Key_type {
+    K_UP,
+    K_DOWN,
+    K_LEFT,
+    K_RIGHT,
+    K_REGAME,
+    K_UNDO,
+    K_REDO,
+    K_ZERO,
+    K_ONE,
+    K_TWO,
+    K_THREE,
+    K_FOUR,
+    K_FIVE,
+    K_SIX,
+    K_SEVEN,
+    K_EIGHT,
+    K_NINE,
+    K_COMPLETE,
+    K_COPY,
+    K_QUIT,
+    K_ENTER
+};
+    \end{lstlisting}
+
+    定义不同类型的按键的名字。
+
+    \begin{lstlisting}
+struct Board {
+    int init[BOARD_SIZE][BOARD_SIZE];
+    int now[BOARD_SIZE][BOARD_SIZE];
+};
+    \end{lstlisting}
+
+    用于储存数独信息的结构体。init 表示数独的初始情况，now 表示现在情况。游戏开始时 init=now。保留 init 信息方便判断操作的合法性。
+
+    \begin{lstlisting}
+typedef std::pair<int, int> Key_value;
+    \end{lstlisting}
+
+    用于保存 getch() 函数的返回值的类型。因为 getch() 函数对于一些按键需要获得两次，故使用一个 pair。
+
+    \begin{lstlisting}
+struct Setting_info {
+    int difficulty;
+    int open_hint;
+    Key_value key_board[KEY_TYPE_SIZE];
+};
+    \end{lstlisting}
+
+    用于保存当前配置信息的结构体。
+    
+    difficulty 表示难度，取值在 $1\sim 3$。
+
+    open\_hint 表示是否开启提示，$1$ 表示开启，$0$ 表示不开启
+
+    key\_board 存储的是所有按键类型对应的按键值。
+
+    \begin{lstlisting}
+typedef std::set<int> Hint;
+    \end{lstlisting}
+
+    定义 Hint 类型，表示提示信息。
+
+    \begin{lstlisting}
+struct Operation_node {
+    int x, y, fr, to;
+};
+    \end{lstlisting}
+
+    定义 Operation\_node 类型，表示操作序列中的一个节点，从而方便 Redo 和 Undo 操作。表示在 $(x, y)$ 将 $fr$ 改成 $to$。
+
+    \begin{lstlisting}
+typedef std::pair<int, int> Coord;
+    \end{lstlisting}
+
+    定义棋盘上的一个点。
+
+    \begin{lstlisting}
+typedef std::vector<Operation_node> Operation_sequence;
+    \end{lstlisting}
+
+    定义 Operation\_sequence 类型，表示操作序列，方便 Redo 和 Undo。
+
+    \subsection{aid}
+    
+    \subsubsection{draw.cpp}
+
+    \begin{lstlisting}
+void Gotoxy(int x, int y);
+    \end{lstlisting}
+    
+    将控制台光标放置到 $(x,y)$，从而方便 menu 函数定点输出。
+
+    使用时应该注意，定位后的输出不能超过 SCREEN\_WIDTH 和\newline SCREEN\_HEIGHT。
+
+    \begin{lstlisting}
+void Clear_screen(void);
+    \end{lstlisting}
+
+    将屏幕全清。
+
+    \begin{lstlisting}
+void Set_color(int color);
+    \end{lstlisting}
+
+    修改之后的字体颜色。
+
+    详情见\textcolor{blue}{\href{https://blog.csdn.net/wangxun20081008/article/details/115046817}{这篇文章}}。
+
+    \begin{lstlisting}
+void Set_window_color(int color);
+    \end{lstlisting}
+
+    设置整个窗口的字体前景色、背景色。
+
+    详情见\textcolor{blue}{\href{https://blog.csdn.net/wangxun20081008/article/details/115046817}{这篇文章}}。
+
+    \subsubsection{copypaste.cpp}
+
+    \begin{lstlisting}
+void Put_to_cp(std::string s);
+    \end{lstlisting}
+
+    将字符串 s 的值放置到剪切板里。
+
+    \begin{lstlisting}
+std::string Get_from_cp(void);
+    \end{lstlisting}
+
+    从剪切板里的内容获取并存放到 s 中。
+
+    \subsubsection{stringboard.cpp}
+
+    \begin{lstlisting}
+std::string Board_to_string(Board NowBoard);
+    \end{lstlisting}
+
+    将 NowBoard 里的内容转换成字符串。
+
+    该字符串如下：先行后列输出 init[][] 的内容后，再输出 now[][] 的内容。输出时先行后列，有空格与换行。
+
+    如果 init 和 now 相同，则输出 81 个字符，仅包含 init[][] 的内容。
+
+    \begin{lstlisting}
+Board String_to_board(std::string s)
+    \end{lstlisting}
+
+    将 s 的内容转换成 Board 并返回。
+
+    字符串规则同上。
+
+    如果不符合规则，则返回的 Board 的 init[0][0] 为 -1。
+
+    \subsubsection{get\_key.cpp}
+
+    \begin{lstlisting}
+Key_value Get_key(void);
+    \end{lstlisting}
+
+    获得一个按键。如果是单个键值的，则返回 $<value, 0>$，如果是两个键值的，则返回 $<value1, value2>$。注意需要把小写字母转化成大写字母。
+
+    \begin{lstlisting}
+std::string Get_keystring(Key_value key);
+    \end{lstlisting}
+
+    将 key 值转化用于描述的 std::string。这个 std::string 在文件内静态定义。如果未定义，返回空串。
+
+    \subsection{generate}
+
+    \subsubsection{generate\_lib.cpp}
+
+    \begin{lstlisting}
+bool Generate_lib(void);
+    \end{lstlisting}
+
+    从“棋盘文件”获得一个相应难度的棋盘，装载到 g\_game\_board 中。成功返回 1，否则返回 0。
+
+    棋盘文件保存在 sudoku\_data/boards[123] 中，按照难度获取不同的文件。
+
+    文件内保存格式为：81 个字符为一组，有空格和换行。详情请见 Put\_to\_cp;
+
+    \subsubsection{generate\_saves.cpp}
+
+    \begin{lstlisting}
+bool Generate_saves(void);
+    \end{lstlisting}
+
+    获取存档位的信息，并装载到 g\_game\_board 中。成功返回 1，否则返回 0。
+
+    存档文件保存在 sudoku\_data/saves 中。格式为 81 / 162 个为一组。（即为 Board\_to\_string）的格式。
+
+    \subsubsection{generate\_cp.cpp}
+
+    \begin{lstlisting}
+bool Generate_cp(void);
+    \end{lstlisting}
+
+    从剪切板中获得棋盘，成功返回 1，否则返回 0。这里运用 Get\_from\_cp 与 String\_to\_board 函数完成。成功返回 1，失败返回 0。
+    
+    \subsubsection{generate\_menu.cpp}
+
+    \begin{lstlisting}
+void Generate_menu(void);
+    \end{lstlisting}
+
+    提供可视化菜单：需要有 "Start from game library"，"Start from last saves"，"Start from copy \& paste"，"Go back" 四个选项。使用 K\_UP 和 K\_DOWN 进行操作，使用 K\_ENTER 进行确认，同时可以使用 K\_ONE， K\_TWO，K\_THREE, K\_QUIT 等等。
+
+    根据选项，分别调用 Generate\_lib，Generate\_saves，Generate\_cp，三个函数。
+
+    \subsection{play}
+
+    \subsubsection{game\_board.cpp}
+
+    \begin{lstlisting}
+Board g_game_board;
+    \end{lstlisting}
+
+    全局变量，表示目前的棋盘。
+
+    \begin{lstlisting}
+Operation_sequence g_operation_sequence;
+    \end{lstlisting}
+
+    全局变量，保存操作的序列。则 Undo 和 Redo 就可以借此完成。
+
+    \begin{lstlisting}
+int g_operation_sequence_id;
+    \end{lstlisting}
+
+    全局变量，和上面的 g\_operation\_sequence 一起使用，用来帮助 Redo。
+    
+    （即 Undo 时不立即弹出）
+
+    \begin{lstlisting}
+void Init_board(void);
+    \end{lstlisting}
+
+    初始化 g\_game\_board、g\_operation\_sequence、g\_operation\_sequence\_id。
+
+    \subsubsection{game\_aid.cpp}
+
+    \begin{lstlisting}
+Hint Get_hint(int x, int y);
+    \end{lstlisting}
+
+    得到棋盘上 $(x, y)$ 这点的提示。注意 $x, y$ 的下标范围均为 $0\sim 8$。返回的 Hint 即 std::set<int> 为该点可填的数的集合。
+
+    \begin{lstlisting}
+bool Judge_legal(int x, int y);
+    \end{lstlisting}
+
+判断 $(x, y)$ 现在所填数是否合法。合法返回 1，不合法返回 0。
+
+    \begin{lstlisting}
+std::set<Coord> Get_illegal(void);
+    \end{lstlisting}
+
+    获得棋盘上不合法的棋子。
+
+    \begin{lstlisting}
+bool Judge_win();
+    \end{lstlisting}
+
+    判断游戏是否胜利，胜利返回 1，未胜利返回 0。
+
+    胜利的条件：棋盘全部填满；符合数独的规则（这个可以调用 Judge\_legal 完成）。
+
+
+    \subsubsection{operation}
+
+    \subsubsubsection{move.cpp}
+
+    \begin{lstlisting}
+int g_cursor_x;
+int g_cursor_y;
+    \end{lstlisting}
+
+    全局变量，为棋盘上的光标（取值均在 $0\sim 8$）。
+
+    \begin{lstlisting}
+void Move_init(void);
+    \end{lstlisting}
+
+    初始化光标。
+
+    \begin{lstlisting}
+bool Go_up(void);
+bool Go_down(void);
+bool Go_left(void);
+bool Go_right(void);
+bool Move_cursor(int x, int y);
+    \end{lstlisting}
+
+    移动光标。成功移动返回 1，否则返回 0。即改变 g\_cursor\_x 和 g\_cursor\_y 的值。如果到边界，则失败。除了 Move\_cursor 外，都会加入 operation\_sequence。
+
+    \subsubsubsection{write\_number.cpp}
+
+    \begin{lstlisting}
+bool Write_number(int x, int y, int val, int ty);
+    \end{lstlisting}
+
+    将 $(x, y)$ 处的数更改为 val，成功返回 1，不成功返回 0。
+
+    如果 $(x, y)$ 处为 init 中就存在的值（即不可填写的值），则失败。如果 ty 为 1，表示需要加入队列。
+
+    \subsubsubsection{regame.cpp}
+
+    \begin{lstlisting}
+bool Regame(void);
+    \end{lstlisting}
+
+    发出重玩请求，需要确认，确实重玩返回 1，否则返回 0。即将 now 赋值为 init，再调用 Init\_board，再 Print\_board。
+
+    \subsubsubsection{undo\_redo.cpp}
+
+    \begin{lstlisting}
+bool Undo(void);
+bool Redo(void);
+    \end{lstlisting}
+
+    撤销、恢复操作。成功返回 1，失败返回 0。
+
+    Undo 只需让 g\_operation\_sequence\_id 自减。若为 0，则失败。
+
+    Redo 只需让 g\_operation\_sequence\_id 自增。若为 size-1，则失败。
+
+    \subsubsubsection{solve.cpp}
+
+    \begin{lstlisting}
+Board Solve_game(Board NowBoard);
+    \end{lstlisting}
+    
+    求解 NowBoard，返回解后 Board。这里计划采用 Dancing Link X 算法求解。如果无解，返回的 Board 的 now[0][0] 为-1。
+
+    \subsubsubsection{complete\_game.cpp}
+
+    \begin{lstlisting}
+bool Complete_game(void);
+    \end{lstlisting}
+
+    一键完成游戏。成功返回 1，失败返回 0。无解则失败。
+
+    \subsubsubsection{copy\_to\_paste.cpp}
+
+    \begin{lstlisting}
+bool Copy_to_paste(void);
+    \end{lstlisting}
+
+    将当前游戏复制到剪切板，成功返回 1，失败返回 0。一般不会失败。
+
+    \subsubsubsection{save\_game.cpp}
+
+    \begin{lstlisting}
+bool Save_board(void);
+    \end{lstlisting}
+
+    将当前游戏保存到存档位中。成功返回 1，失败返回 0。存档不能正确打开则失败。
+
+    存档文件保存在 sudoku\_data/saves 中。格式为 81 / 162 个为一组。（即为 Board\_to\_string）的格式。
+
+    \subsubsection{print}
+
+    \subsubsubsection{print\_board.cpp}
+
+    \begin{lstlisting}
+void Print_board(void);
+    \end{lstlisting}
+
+    初始化输出整个棋盘框架。（重刷）
+    
+    包括边界、初始数字、光标。
+
+    \begin{lstlisting}
+void Delete_cursor(int x, int y);
+    \end{lstlisting}
+    
+    删除 $(x, y)$ 处的光标。（用空白覆盖）
+
+    \begin{lstlisting}
+void Add_cursor(int x, int y);
+    \end{lstlisting}
+
+    在 $(x, y)$ 处增添光标。
+
+    \begin{lstlisting}
+void Modify_number(int x, int y, int val);
+    \end{lstlisting}
+
+    将 $(x, y)$ 处的数字改为 $val$（覆盖）。
+    
+    \subsubsubsection{print\_hint.cpp}
+
+    \begin{lstlisting}
+void Print_hint(int x, int y);
+    \end{lstlisting}
+
+    在提示区打印 $(x, y)$ 的提示。
+
+    \subsubsubsection{print\_message.cpp}
+
+    \begin{lstlisting}
+void Print_message(std::string s, int color);
+    \end{lstlisting}
+    
+    在通知区打印通知。
+
+    \subsubsection{run\_game.cpp}
+
+    \begin{lstlisting}
+void Run_game(void);
+    \end{lstlisting}
+
+    游戏的主体运行逻辑。
+    
+    首先调用 Init\_board，然后 Print\_board。接下来不断调用 Get\_key 等，然后根据操作分别调用 operation 中不同的函数。每次操作后，及时打印到屏幕。
+
+    当对棋盘做出改变时，要及时写入文件（调用 Save\_Board 函数）
+
+    \subsection{setting}
+
+    \subsubsection{setting\_menu.cpp}
+
+    \begin{lstlisting}
+Setting_info g_setting_info;
+    \end{lstlisting}
+
+    保存配置信息的全局变量。
+
+    \begin{lstlisting}
+void Setting_menu(void);
+    \end{lstlisting}
+
+    显示设置菜单。需要有 "Difficulty", "Hint", "Keys", "Go back" 等几个选项。在每次调整后，自动写入文件（调用 Load\_setting）
+
+    \subsubsection{difficulty.cpp}
+
+    \begin{lstlisting}
+void Modify_difficulty(int val);
+    \end{lstlisting}
+
+    将难度调整为 $val$。
+
+    \subsubsection{open\_hint.cpp}
+
+    \begin{lstlisting}
+void Modify_open_hint(int val);
+    \end{lstlisting}
+
+    将提示开启与否调整为 $val$。
+
+    \subsubsection{key\_board\_menu.cpp}
+
+    \begin{lstlisting}
+void Key_board_menu(void);
+    \end{lstlisting}
+
+    快捷键菜单。需要提供 KEY\_TYPE\_SIZE 种快捷键的更改操作。注意大小写字母都转化为大写字母。
+
+    \begin{lstlisting}
+bool Check_key(Key_type kt, Key_value key);
+    \end{lstlisting}
+
+    判断 kt 键位的值是否为 key。
+
+    \subsubsection{key\_board.cpp}
+
+    \begin{lstlisting}
+void Modify_key_board(Key_type kt, Key_value key);
+    \end{lstlisting}
+    
+    将 $kt$ 键位的值改为 $key$。
+    
+    \subsubsection{settingfile.cpp}
+
+    \begin{lstlisting}
+void Load_setting(void);
+    \end{lstlisting}
+
+    从 sudoku\_data/setting 文件中读取，并储存到 setting\_info 中。
+
+    \begin{lstlisting}
+void Save_setting(void);
+    \end{lstlisting}
+
+    将 setting\_info 的内容发送到 sudoku\_data/setting 中。
+    \subsection{start.cpp}
+
+    \begin{lstlisting}
+void Start_menu(void);
+    \end{lstlisting}
+
+    开始菜单。提供 State Game（调用 Generate\_menu），Settings（调用 Setting\_menu），Exit 等功能。
+
+    \subsection{main.cpp}
+
+    \begin{lstlisting}
+int main(void);
+    \end{lstlisting}
+
+    主函数。是整个程序的入口。
+    
+    首先先调用 Load\_setting() 读取配置，然后调用 Start\_menu()，进入开始页面。
+
+\end{document}
